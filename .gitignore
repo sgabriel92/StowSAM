@@ -9,6 +9,7 @@
 *.csv
 *.log
 *.png
+*.h5
 data/
 work_dir/
 
