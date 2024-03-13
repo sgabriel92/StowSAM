@@ -10,7 +10,7 @@ import matplotlib.pyplot as plt
 import os
 
 join = os.path.join
-from tqdm import tqdm
+from tqdm import tqdm,trange
 from skimage import transform
 import torch
 import torch.nn as nn
@@ -118,12 +118,11 @@ class h5Dataset(Dataset):
             record["bboxes"] = torch.tensor(bboxes).float()
             record["index"] = idx
             dataset_dicts.append(record)
+        h5f.close()
         return dataset_dicts
 
     def __getitem__(self, index):
         return self.dataset_dicts[index]
-    
-    #TODO: load into memory
 
 
 class NpyDataset(Dataset):
@@ -185,7 +184,7 @@ class NpyDataset(Dataset):
         )
 
 
-# %% sanity test of dataset class
+# %% sanity test of npy dataset class
 trnpy_dataset = NpyDataset("dataset/StowSam/input/train")
 trnpy_dataloader = DataLoader(trnpy_dataset, batch_size=8, shuffle=True)
 for step, (image, gt, bboxes, names_temp) in enumerate(trnpy_dataloader):
@@ -212,7 +211,7 @@ for step, (image, gt, bboxes, names_temp) in enumerate(trnpy_dataloader):
     plt.close()
     break
 
-# %% sanity test of dataset class
+# %% sanity test of dataset h5 class
 tr_dataset = h5Dataset("dataset/StowSam/input/train/stow_0.h5")
 tr_dataloader = DataLoader(tr_dataset, batch_size=8, shuffle=True)
 for step, entry in enumerate(tr_dataloader):
@@ -260,7 +259,7 @@ parser.add_argument(
     default="dataset/StowSam/input/train/stow_0.h5",
     help="path to training h5 files; two subfolders: gts and imgs",
 )
-parser.add_argument("-task_name", type=str, default="MedSAM-ViT-B")
+parser.add_argument("-task_name", type=str, default="StowSAM-ViT-B")
 parser.add_argument("-model_type", type=str, default="vit_b")
 parser.add_argument(
     "-checkpoint", type=str, default="work_dir/SAM/sam_vit_b_01ec64.pth"
@@ -313,8 +312,8 @@ model_save_path = join(args.work_dir, args.task_name + "-" + run_id)
 device = torch.device(args.device)
 # %% set up model
 
-
-class MedSAM(nn.Module):
+# %% define StowSAM model
+class StowSAM(nn.Module):
     def __init__(
         self,
         image_encoder,
@@ -332,9 +331,10 @@ class MedSAM(nn.Module):
             param.requires_grad = False
 
     def forward(self, image, box):
-        image_embedding = self.image_encoder(image)  # (B, 256, 64, 64)
+        #image_embedding = self.image_encoder(image)  # (B, 256, 64, 64)
         # do not compute gradients for prompt encoder
         with torch.no_grad():
+            image_embedding = self.image_encoder(image)  # (B, 256, 64, 64) Optional no gradient for image encoder
             box_torch = torch.as_tensor(box, dtype=torch.float32, device=image.device)
             if len(box_torch.shape) == 2:
                 box_torch = box_torch[:, None, :]  # (B, 1, 4)
@@ -367,24 +367,24 @@ def main():
     )
 
     sam_model = sam_model_registry[args.model_type](checkpoint=args.checkpoint)
-    medsam_model = MedSAM(
+    stowsam_model = StowSAM(
         image_encoder=sam_model.image_encoder,
         mask_decoder=sam_model.mask_decoder,
         prompt_encoder=sam_model.prompt_encoder,
     ).to(device)
-    medsam_model.train()
+    stowsam_model.train()
 
     print(
         "Number of total parameters: ",
-        sum(p.numel() for p in medsam_model.parameters()),
+        sum(p.numel() for p in stowsam_model.parameters()),
     )  # 93735472
     print(
         "Number of trainable parameters: ",
-        sum(p.numel() for p in medsam_model.parameters() if p.requires_grad),
+        sum(p.numel() for p in stowsam_model.parameters() if p.requires_grad),
     )  # 93729252
 
-    img_mask_encdec_params = list(medsam_model.image_encoder.parameters()) + list(
-        medsam_model.mask_decoder.parameters()
+    img_mask_encdec_params = list(stowsam_model.image_encoder.parameters()) + list(
+        stowsam_model.mask_decoder.parameters()
     )
     optimizer = torch.optim.AdamW(
         img_mask_encdec_params, lr=args.lr, weight_decay=args.weight_decay
@@ -419,14 +419,18 @@ def main():
             ## Map model to be loaded to specified single GPU
             checkpoint = torch.load(args.resume, map_location=device)
             start_epoch = checkpoint["epoch"] + 1
-            medsam_model.load_state_dict(checkpoint["model"])
+            stowsam_model.load_state_dict(checkpoint["model"])
             optimizer.load_state_dict(checkpoint["optimizer"])
     if args.use_amp:
         scaler = torch.cuda.amp.GradScaler()
 
     for epoch in range(start_epoch, num_epochs):
         epoch_loss = 0
+        # Create a new tqdm object for each epoch
+        #with tqdm(total=len(train_dataloader), desc=f"Epoch {epoch+1}/{num_epochs}") as pbar:
         for step, entry in enumerate(tqdm(train_dataloader)):
+            # Update the tqdm object
+            #pbar.update(1)
             print(entry["img"].shape, entry["gt"].shape, entry["bboxes"].shape)
             image = entry["img"]
             gt2D = entry["gt"]
@@ -438,17 +442,17 @@ def main():
             if args.use_amp:
                 ## AMP
                 with torch.autocast(device_type="cuda", dtype=torch.float16):
-                    medsam_pred = medsam_model(image, boxes_np)
-                    loss = seg_loss(medsam_pred, gt2D) + ce_loss(
-                        medsam_pred, gt2D.float()
+                    stowsam_pred = stowsam_model(image, boxes_np)
+                    loss = seg_loss(stowsam_pred, gt2D) + ce_loss(
+                        stowsam_pred, gt2D.float()
                     )
                 scaler.scale(loss).backward()
                 scaler.step(optimizer)
                 scaler.update()
                 optimizer.zero_grad()
             else:
-                medsam_pred = medsam_model(image, boxes_np)
-                loss = seg_loss(medsam_pred, gt2D) + ce_loss(medsam_pred, gt2D.float())
+                stowsam_pred = stowsam_model(image, boxes_np)
+                loss = seg_loss(stowsam_pred, gt2D) + ce_loss(stowsam_pred, gt2D.float())
                 loss.backward()
                 optimizer.step()
                 optimizer.zero_grad()
@@ -456,8 +460,10 @@ def main():
             epoch_loss += loss.item()
             iter_num += 1
 
+        #pbar.close()
         epoch_loss /= step
         losses.append(epoch_loss)
+        
         if args.use_wandb:
             wandb.log({"epoch_loss": epoch_loss})
         print(
@@ -465,29 +471,34 @@ def main():
         )
         ## save the latest model
         checkpoint = {
-            "model": medsam_model.state_dict(),
+            "model": stowsam_model.state_dict(),
             "optimizer": optimizer.state_dict(),
             "epoch": epoch,
         }
-        torch.save(checkpoint, join(model_save_path, "medsam_model_latest.pth"))
+        torch.save(checkpoint, join(model_save_path, "stowsam_model_latest.pth"))
         ## save the best model
         if epoch_loss < best_loss:
             best_loss = epoch_loss
             checkpoint = {
-                "model": medsam_model.state_dict(),
+                "model": stowsam_model.state_dict(),
                 "optimizer": optimizer.state_dict(),
                 "epoch": epoch,
             }
-            torch.save(checkpoint, join(model_save_path, "medsam_model_best.pth"))
-
-        # %% plot loss
-        plt.plot(losses)
-        plt.title("Dice + Cross Entropy Loss")
-        plt.xlabel("Epoch")
-        plt.ylabel("Loss")
-        plt.savefig(join(model_save_path, args.task_name + "train_loss.png"))
-        plt.close()
+            torch.save(checkpoint, join(model_save_path, "stowsam_model_best.pth"))
 
 
+    print("Training finished")
+    print("losses: ", losses)
+    
+    # %% plot loss
+    plt.plot(losses)
+    plt.title("Dice + Cross Entropy Loss")
+    plt.xlabel("Epoch")
+    plt.ylabel("Loss")
+    plt.savefig(join(model_save_path, args.task_name + "train_loss.png"))
+    plt.close()
+
+# %% test
 if __name__ == "__main__":
     main()
+    
