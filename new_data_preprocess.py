@@ -65,74 +65,82 @@ do_intensity_cutoff = False # True for grey images
 #prep for new h5 file
 imgs_mod = []
 gts_mod = []
+split = 5
 
-with h5py.File(f"{filename}.h5", 'r') as h5_file:
+def processh5file(h5_file, chunk_id, num_samples):
+    with h5py.File(f"{filename}.h5", 'r') as h5_file:
+        min_rand_id = chunk_id *num_samples
+        for id in trange(min_rand_id,min_rand_id+num_samples):
+            for i in range(2):
+                #process gt data
+                gt_data = h5_file[f'mask'][id][i]
+                #assess shape of gt data
+                if len(gt_data.shape) == 3:
+                    gt_data = gt_data[:, :, 0]            
+                assert len(gt_data.shape) == 2, "ground truth should be 2D"
 
-    for id in trange(0,100):
-        for i in range(2):
-            #process gt data
-            gt_data = h5_file[f'mask'][id][i]
-            #assess shape of gt data
-            if len(gt_data.shape) == 3:
-                gt_data = gt_data[:, :, 0]            
-            assert len(gt_data.shape) == 2, "ground truth should be 2D"
+                gt_data_ori = np.uint8(gt_data)
 
-            gt_data_ori = np.uint8(gt_data)
+                #image_name = name.split(gt_name_suffix)[0] + img_name_suffix
+                #gt_name = name
+                #npy_save_name = prefix + gt_name.split(gt_name_suffix)[0]+save_suffix
+                #gt_data_ori = np.uint8(io.imread(join(gt_path, gt_name)))
+                # remove label ids
+                #for remove_label_id in remove_label_ids:
+                #    gt_data_ori[gt_data_ori==remove_label_id] = 0
+                # label tumor masks as instances and remove from gt_data_ori
+                #if tumor_id is not None:
+                #    tumor_bw = np.uint8(gt_data_ori==tumor_id)
+                #    gt_data_ori[tumor_bw>0] = 0
+                    # label tumor masks as instances
+                #    tumor_inst, tumor_n = cc3d.connected_components(tumor_bw, connectivity=26, return_N=True)
+                    # put the tumor instances back to gt_data_ori
+                #    gt_data_ori[tumor_inst>0] = tumor_inst[tumor_inst>0] + label_id_offset + 1
+                
+                #process image data
+                image_data = h5_file[f'data'][id][i]
 
-            #image_name = name.split(gt_name_suffix)[0] + img_name_suffix
-            #gt_name = name
-            #npy_save_name = prefix + gt_name.split(gt_name_suffix)[0]+save_suffix
-            #gt_data_ori = np.uint8(io.imread(join(gt_path, gt_name)))
-            # remove label ids
-            #for remove_label_id in remove_label_ids:
-            #    gt_data_ori[gt_data_ori==remove_label_id] = 0
-            # label tumor masks as instances and remove from gt_data_ori
-            #if tumor_id is not None:
-            #    tumor_bw = np.uint8(gt_data_ori==tumor_id)
-            #    gt_data_ori[tumor_bw>0] = 0
-                # label tumor masks as instances
-            #    tumor_inst, tumor_n = cc3d.connected_components(tumor_bw, connectivity=26, return_N=True)
-                # put the tumor instances back to gt_data_ori
-            #    gt_data_ori[tumor_inst>0] = tumor_inst[tumor_inst>0] + label_id_offset + 1
-            
-            #process image data
-            image_data = h5_file[f'data'][id][i]
+                # crop the ground truth with non-zero slices
+                #image_data = io.imread(join(img_path, image_name))
+                if np.max(image_data) > 255.0:
+                    image_data = np.uint8((image_data-image_data.min()) / (np.max(image_data)-np.min(image_data))*255.0)
+                if len(image_data.shape) == 2:
+                    image_data = np.repeat(np.expand_dims(image_data, -1), 3, -1)
+                assert len(image_data.shape) == 3, 'image data is not three channels: img shape:' + str(image_data.shape)
+                # convert three channel to one channel
+                if image_data.shape[-1] > 3:
+                    image_data = image_data[:,:,:3]
+                # image preprocess start
+                if do_intensity_cutoff:
+                    lower_bound, upper_bound = np.percentile(image_data[image_data>0], 0.5), np.percentile(image_data[image_data>0], 99.5)
+                    image_data_pre = np.clip(image_data, lower_bound, upper_bound)
+                    image_data_pre = (image_data_pre - np.min(image_data_pre))/(np.max(image_data_pre)-np.min(image_data_pre))*255.0
+                    image_data_pre[image_data==0] = 0
+                    image_data_pre = np.uint8(image_data_pre)
+                else:
+                    # print('no intensity cutoff')
+                    image_data_pre = image_data.copy()
+                
+                #np.savez_compressed(join(npz_save_path, save_name+f'{id}'+f'{i}'+'.npz'), imgs=image_data_pre, gts=gt_data_ori)   
+                resize_img = transform.resize(image_data_pre, (image_size, image_size), order=3, mode='constant', preserve_range=True, anti_aliasing=True)
+                resize_img01 = resize_img/255.0
+                resize_gt = transform.resize(gt_data_ori, (image_size, image_size), order=0, mode='constant', preserve_range=True, anti_aliasing=False)
+                # save resize img and gt as npy
+                #npy_save_name = save_name + f'{id}'+f'{i}'
+                #np.save(join(npy_path, "imgs", npy_save_name), resize_img01)
+                #np.save(join(npy_path, "gts", npy_save_name), resize_gt.astype(np.uint8))
+                imgs_mod.append(resize_img01)
+                gts_mod.append(resize_gt)
 
-            # crop the ground truth with non-zero slices
-            #image_data = io.imread(join(img_path, image_name))
-            if np.max(image_data) > 255.0:
-                image_data = np.uint8((image_data-image_data.min()) / (np.max(image_data)-np.min(image_data))*255.0)
-            if len(image_data.shape) == 2:
-                image_data = np.repeat(np.expand_dims(image_data, -1), 3, -1)
-            assert len(image_data.shape) == 3, 'image data is not three channels: img shape:' + str(image_data.shape)
-            # convert three channel to one channel
-            if image_data.shape[-1] > 3:
-                image_data = image_data[:,:,:3]
-            # image preprocess start
-            if do_intensity_cutoff:
-                lower_bound, upper_bound = np.percentile(image_data[image_data>0], 0.5), np.percentile(image_data[image_data>0], 99.5)
-                image_data_pre = np.clip(image_data, lower_bound, upper_bound)
-                image_data_pre = (image_data_pre - np.min(image_data_pre))/(np.max(image_data_pre)-np.min(image_data_pre))*255.0
-                image_data_pre[image_data==0] = 0
-                image_data_pre = np.uint8(image_data_pre)
-            else:
-                # print('no intensity cutoff')
-                image_data_pre = image_data.copy()
-            
-            np.savez_compressed(join(npz_save_path, save_name+f'{id}'+f'{i}'+'.npz'), imgs=image_data_pre, gts=gt_data_ori)   
-            resize_img = transform.resize(image_data_pre, (image_size, image_size), order=3, mode='constant', preserve_range=True, anti_aliasing=True)
-            resize_img01 = resize_img/255.0
-            resize_gt = transform.resize(gt_data_ori, (image_size, image_size), order=0, mode='constant', preserve_range=True, anti_aliasing=False)
-            # save resize img and gt as npy
-            npy_save_name = save_name + f'{id}'+f'{i}'
-            np.save(join(npy_path, "imgs", npy_save_name), resize_img01)
-            np.save(join(npy_path, "gts", npy_save_name), resize_gt.astype(np.uint8))
-            imgs_mod.append(resize_img01)
-            gts_mod.append(resize_gt)
+    # # save img_mod and gt_mod as h5 file
+    new_file_h5 = f'stow_{chunk_id}'
+    hf = h5py.File(join(npy_path, new_file_h5 + '.h5'), 'w')
+    hf.create_dataset('imgs', data=imgs_mod)
+    hf.create_dataset('gts', data=gts_mod)
 
 
-# # save img_mod and gt_mod as h5 file
-new_file_h5 = 'stow_0'
-hf = h5py.File(join(npy_path, new_file_h5 + '.h5'), 'w')
-hf.create_dataset('imgs', data=imgs_mod)
-hf.create_dataset('gts', data=gts_mod)
+for dataset_id in range(split):
+    processh5file(filename, dataset_id, 100)
+    print(f'finished {dataset_id=}')
+    imgs_mod.clear()
+    gts_mod.clear()
