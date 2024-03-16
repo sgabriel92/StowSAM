@@ -56,8 +56,11 @@ def show_box(box, ax):
     )
 
 class h5Dataset(Dataset):
-    def __init__(self, h5_file, transform=None, bbox_shift=20):
-        self.h5_file = h5_file
+    def __init__(self, h5_file_path, transform=None, bbox_shift=20):
+        self.h5_files = sorted(
+            glob.glob(join(h5_file_path, "*.h5"), recursive=True)
+        )
+        print(f"number of files: {len(self.h5_files)}")
         self.transform = transform
         # self.h5f = h5py.File(h5_file, "r")
         # self.imgs= self.h5f["imgs"]
@@ -65,60 +68,63 @@ class h5Dataset(Dataset):
 
         self.bbox_shift = bbox_shift
         #print(f"number of images: {len(self.gt_path_files)}")
-        self.dataset_dicts = self.processdata(self.h5_file, self.transform, self.bbox_shift)
+        self.dataset_dicts = self.processdata(self.h5_files, self.transform, self.bbox_shift)
 
 
     def __len__(self):
         return len(self.dataset_dicts)
 
-    def processdata(self,h5_file, transform=None, bbox_shift=20):
-        h5f = h5py.File(h5_file, "r")
-        imgs= h5f["imgs"]
-        gts = h5f["gts"]
-        print(f"number of images: {len(imgs)}")
+    def processdata(self,h5_files, transform=None, bbox_shift=20):
         dataset_dicts = []
-        for idx in range(len(imgs)):
-            # load npy image (1024, 1024, 3), [0,1]
-            #img_name = os.path.basename(self.imgs[index])
-            #img_1024 = np.load(
-            #    join(self.img_path, img_name), "r", allow_pickle=True
-            #)  # (1024, 1024, 3)
-            img_1024 = imgs[idx]
-            # convert the shape to (3, H, W)
-            img_1024 = np.transpose(img_1024, (2, 0, 1))
-            assert (
-                np.max(img_1024) <= 1.0 and np.min(img_1024) >= 0.0
-            ), "image should be normalized to [0, 1]"
-            # gt = np.load(
-            #     self.gt_path_files[index], "r", allow_pickle=True
-            # )  # multiple labels [0, 1,4,5...], (256,256)
-            gt = gts[idx]
-            #TODO: include check that gts matches image
-            # assert img_name == os.path.basename(self.gt_path_files[index]), (
-            #     "img gt name error" + self.gt_path_files[index] + self.npy_files[index]
-            # )
-            label_ids = np.unique(gt)[1:]
-            gt2D = np.uint8(
-                gt == random.choice(label_ids.tolist())
-            )  # only one label, (256, 256)
-            assert np.max(gt2D) == 1 and np.min(gt2D) == 0.0, "ground truth should be 0, 1"
-            y_indices, x_indices = np.where(gt2D > 0)
-            x_min, x_max = np.min(x_indices), np.max(x_indices)
-            y_min, y_max = np.min(y_indices), np.max(y_indices)
-            # add perturbation to bounding box coordinates
-            H, W = gt2D.shape
-            x_min = max(0, x_min - random.randint(0, bbox_shift))
-            x_max = min(W, x_max + random.randint(0, bbox_shift))
-            y_min = max(0, y_min - random.randint(0, bbox_shift))
-            y_max = min(H, y_max + random.randint(0, bbox_shift))
-            bboxes = np.array([x_min, y_min, x_max, y_max])
-            record = {}
-            record["img"] = torch.tensor(img_1024).float()
-            record["gt"] = torch.tensor(gt2D[None, :, :]).long()
-            record["bboxes"] = torch.tensor(bboxes).float()
-            record["index"] = idx
-            dataset_dicts.append(record)
-        h5f.close()
+        
+        for file in h5_files:
+            h5f = h5py.File(file, "r")
+            imgs= h5f["imgs"]
+            gts = h5f["gts"]
+            print(f"number of images: {len(imgs)} in {file}")
+            #dataset_dicts = []
+            for idx in range(len(imgs)):
+                # load npy image (1024, 1024, 3), [0,1]
+                #img_name = os.path.basename(self.imgs[index])
+                #img_1024 = np.load(
+                #    join(self.img_path, img_name), "r", allow_pickle=True
+                #)  # (1024, 1024, 3)
+                img_1024 = imgs[idx]
+                # convert the shape to (3, H, W)
+                img_1024 = np.transpose(img_1024, (2, 0, 1))
+                assert (
+                    np.max(img_1024) <= 1.0 and np.min(img_1024) >= 0.0
+                ), "image should be normalized to [0, 1]"
+                # gt = np.load(
+                #     self.gt_path_files[index], "r", allow_pickle=True
+                # )  # multiple labels [0, 1,4,5...], (256,256)
+                gt = gts[idx]
+                #TODO: include check that gts matches image
+                # assert img_name == os.path.basename(self.gt_path_files[index]), (
+                #     "img gt name error" + self.gt_path_files[index] + self.npy_files[index]
+                # )
+                label_ids = np.unique(gt)[1:]
+                gt2D = np.uint8(
+                    gt == random.choice(label_ids.tolist())
+                )  # only one label, (256, 256)
+                assert np.max(gt2D) == 1 and np.min(gt2D) == 0.0, "ground truth should be 0, 1"
+                y_indices, x_indices = np.where(gt2D > 0)
+                x_min, x_max = np.min(x_indices), np.max(x_indices)
+                y_min, y_max = np.min(y_indices), np.max(y_indices)
+                # add perturbation to bounding box coordinates
+                H, W = gt2D.shape
+                x_min = max(0, x_min - random.randint(0, bbox_shift))
+                x_max = min(W, x_max + random.randint(0, bbox_shift))
+                y_min = max(0, y_min - random.randint(0, bbox_shift))
+                y_max = min(H, y_max + random.randint(0, bbox_shift))
+                bboxes = np.array([x_min, y_min, x_max, y_max])
+                record = {}
+                record["img"] = torch.tensor(img_1024).float()
+                record["gt"] = torch.tensor(gt2D[None, :, :]).long()
+                record["bboxes"] = torch.tensor(bboxes).float()
+                record["index"] = idx
+                dataset_dicts.append(record)
+            h5f.close()
         return dataset_dicts
 
     def __getitem__(self, index):
@@ -139,7 +145,7 @@ class NpyDataset(Dataset):
             if os.path.isfile(join(self.img_path, os.path.basename(file)))
         ]
         self.bbox_shift = bbox_shift
-        print(f"number of images: {len(self.gt_path_files)}")
+        #print(f"number of images: {len(self.gt_path_files)}")
 
     def __len__(self):
         return len(self.gt_path_files)
@@ -212,7 +218,7 @@ for step, (image, gt, bboxes, names_temp) in enumerate(trnpy_dataloader):
     break
 
 # %% sanity test of dataset h5 class
-tr_dataset = h5Dataset("dataset/StowSam/input/train/stow_0.h5")
+tr_dataset = h5Dataset("dataset/StowSam/input/train/")
 tr_dataloader = DataLoader(tr_dataset, batch_size=8, shuffle=True)
 for step, entry in enumerate(tr_dataloader):
     #(image, gt, bboxes, index) 
@@ -256,7 +262,7 @@ parser.add_argument(
     "-j",
     "--tr_h5_path",
     type=str,
-    default="dataset/StowSam/input/train/stow_0.h5",
+    default="dataset/StowSam/input/train/",
     help="path to training h5 files; two subfolders: gts and imgs",
 )
 parser.add_argument("-task_name", type=str, default="StowSAM-ViT-B")

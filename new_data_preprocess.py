@@ -65,13 +65,13 @@ do_intensity_cutoff = False # True for grey images
 #prep for new h5 file
 imgs_mod = []
 gts_mod = []
-split = 5
+split = 2
 
 def processh5file(h5_file, chunk_id, num_samples):
     with h5py.File(f"{filename}.h5", 'r') as h5_file:
         min_rand_id = chunk_id *num_samples
         for id in trange(min_rand_id,min_rand_id+num_samples):
-            for i in range(2):
+            for i in range(1):
                 #process gt data
                 gt_data = h5_file[f'mask'][id][i]
                 #assess shape of gt data
@@ -140,7 +140,7 @@ def processh5file(h5_file, chunk_id, num_samples):
 
 
 for dataset_id in range(split):
-    processh5file(filename, dataset_id, 100)
+    processh5file(filename, dataset_id, 4500)
     print(f'finished {dataset_id=}')
     imgs_mod.clear()
     gts_mod.clear()

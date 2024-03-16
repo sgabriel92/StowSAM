@@ -10,6 +10,7 @@
 *.log
 *.png
 *.h5
+*.out
 data/
 work_dir/
 
