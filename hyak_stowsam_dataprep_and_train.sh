@@ -19,6 +19,7 @@ source /mmfs1/gscratch/sciencehub/sebgab/miniconda3/bin/activate
 cd /mmfs1/gscratch/sciencehub/sebgab/Dev/StowSAM
 conda activate StowSam
 
+python new_data_preprocess.py
 python train_one_gpu_StowSam.py
 exit 0
 
