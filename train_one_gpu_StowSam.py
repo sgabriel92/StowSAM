@@ -430,11 +430,18 @@ def main():
     if args.use_amp:
         scaler = torch.cuda.amp.GradScaler()
 
+    start = 0
+    end = train_dataloader.__len__()/args.batch_size
+    print(f"start: {start}, end: {end}")
+
+
     for epoch in range(start_epoch, num_epochs):
         epoch_loss = 0
         # Create a new tqdm object for each epoch
         #with tqdm(total=len(train_dataloader), desc=f"Epoch {epoch+1}/{num_epochs}") as pbar:
+        #for step in trange(int(start), int(end)):
         for step, entry in enumerate(tqdm(train_dataloader)):
+            #entry = train_dataloader.dataset[step]
             # Update the tqdm object
             #pbar.update(1)
             print(entry["img"].shape, entry["gt"].shape, entry["bboxes"].shape)

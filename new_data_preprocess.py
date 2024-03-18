@@ -65,7 +65,7 @@ do_intensity_cutoff = False # True for grey images
 #prep for new h5 file
 imgs_mod = []
 gts_mod = []
-split = 2
+split = 5
 
 def processh5file(h5_file, chunk_id, num_samples):
     with h5py.File(f"{filename}.h5", 'r') as h5_file:
@@ -140,7 +140,7 @@ def processh5file(h5_file, chunk_id, num_samples):
 
 
 for dataset_id in range(split):
-    processh5file(filename, dataset_id, 10)
+    processh5file(filename, dataset_id, 1800)
     print(f'finished {dataset_id=}')
     imgs_mod.clear()
     gts_mod.clear()
