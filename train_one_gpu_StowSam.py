@@ -218,36 +218,36 @@ class NpyDataset(Dataset):
 #     break
 
 # %% sanity test of dataset h5 class
-tr_dataset = h5Dataset("dataset/StowSam/input/train/")
-tr_dataloader = DataLoader(tr_dataset, batch_size=8, shuffle=True)
-for step, entry in enumerate(tr_dataloader):
-    #(image, gt, bboxes, index) 
-    print(entry["img"].shape, entry["gt"].shape, entry["bboxes"].shape)
-    image = entry["img"]
-    gt = entry["gt"]
-    bboxes = entry["bboxes"]
-    index = entry["index"]
-    # show the example
-    _, axs = plt.subplots(1, 2, figsize=(25, 25))
-    idx = random.randint(0, 7)
-    axs[0].imshow(image[idx].cpu().permute(1, 2, 0).numpy())
-    show_mask(gt[idx].cpu().numpy(), axs[0])
-    show_box(bboxes[idx].numpy(), axs[0])
-    axs[0].axis("off")
-    # set title
-    axs[0].set_title(names_temp[idx])
-    idx = random.randint(0, 7)
-    axs[1].imshow(image[idx].cpu().permute(1, 2, 0).numpy())
-    show_mask(gt[idx].cpu().numpy(), axs[1])
-    show_box(bboxes[idx].numpy(), axs[1])
-    axs[1].axis("off")
-    # set title
-    axs[1].set_title(names_temp[idx])
-    # plt.show()
-    plt.subplots_adjust(wspace=0.01, hspace=0)
-    plt.savefig("./data_sanitycheck.png", bbox_inches="tight", dpi=300)
-    plt.close()
-    break
+# tr_dataset = h5Dataset("dataset/StowSam/input/train/")
+# tr_dataloader = DataLoader(tr_dataset, batch_size=8, shuffle=True)
+# for step, entry in enumerate(tr_dataloader):
+#     #(image, gt, bboxes, index) 
+#     print(entry["img"].shape, entry["gt"].shape, entry["bboxes"].shape)
+#     image = entry["img"]
+#     gt = entry["gt"]
+#     bboxes = entry["bboxes"]
+#     index = entry["index"]
+#     # show the example
+#     _, axs = plt.subplots(1, 2, figsize=(25, 25))
+#     idx = random.randint(0, 7)
+#     axs[0].imshow(image[idx].cpu().permute(1, 2, 0).numpy())
+#     show_mask(gt[idx].cpu().numpy(), axs[0])
+#     show_box(bboxes[idx].numpy(), axs[0])
+#     axs[0].axis("off")
+#     # set title
+#     axs[0].set_title(names_temp[idx])
+#     idx = random.randint(0, 7)
+#     axs[1].imshow(image[idx].cpu().permute(1, 2, 0).numpy())
+#     show_mask(gt[idx].cpu().numpy(), axs[1])
+#     show_box(bboxes[idx].numpy(), axs[1])
+#     axs[1].axis("off")
+#     # set title
+#     axs[1].set_title(names_temp[idx])
+#     # plt.show()
+#     plt.subplots_adjust(wspace=0.01, hspace=0)
+#     plt.savefig("./data_sanitycheck.png", bbox_inches="tight", dpi=300)
+#     plt.close()
+#     break
 
 # %% set up parser
 parser = argparse.ArgumentParser()
