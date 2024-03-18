@@ -140,7 +140,7 @@ def processh5file(h5_file, chunk_id, num_samples):
 
 
 for dataset_id in range(split):
-    processh5file(filename, dataset_id, 1)
+    processh5file(filename, dataset_id, 10
     print(f'finished {dataset_id=}')
     imgs_mod.clear()
     gts_mod.clear()
