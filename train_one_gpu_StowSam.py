@@ -77,7 +77,7 @@ class h5Dataset(Dataset):
 
     def processdata(self,h5_files, transform=None, bbox_shift=20):
         dataset_dicts = []
-        h
+        
         for file in h5_files:
             h5f = h5py.File(file, "r")
             imgs= h5f["imgs"][:]
