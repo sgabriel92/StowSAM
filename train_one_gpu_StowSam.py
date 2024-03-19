@@ -60,6 +60,7 @@ class h5Dataset(Dataset):
         self.h5_files = sorted(
             glob.glob(join(h5_file_path, "*.h5"), recursive=True)
         )
+        h5_files = h5_files[:2]
         print(f"number of files: {len(self.h5_files)}")
         self.transform = transform
         # self.h5f = h5py.File(h5_file, "r")
@@ -76,11 +77,11 @@ class h5Dataset(Dataset):
 
     def processdata(self,h5_files, transform=None, bbox_shift=20):
         dataset_dicts = []
-        
+        h
         for file in h5_files:
             h5f = h5py.File(file, "r")
-            imgs= h5f["imgs"]
-            gts = h5f["gts"]
+            imgs= h5f["imgs"][:]
+            gts = h5f["gts"][:]
             print(f"number of images: {len(imgs)} in {file}")
             #dataset_dicts = []
             for idx in range(len(imgs)):
