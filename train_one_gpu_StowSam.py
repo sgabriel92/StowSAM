@@ -60,7 +60,7 @@ class h5Dataset(Dataset):
         self.h5_files = sorted(
             glob.glob(join(h5_file_path, "*.h5"), recursive=True)
         )
-        #self.h5_files = self.h5_files[:2]
+        self.h5_files = self.h5_files[:2]
         print(f"number of files: {len(self.h5_files)}")
         self.transform = transform
         # self.h5f = h5py.File(h5_file, "r")
