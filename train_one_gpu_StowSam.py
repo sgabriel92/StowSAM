@@ -441,12 +441,12 @@ def main():
         # Create a new tqdm object for each epoch
         #with tqdm(total=len(train_dataloader), desc=f"Epoch {epoch+1}/{num_epochs}") as pbar:
         #for step in trange(int(start), int(end)):
-        #for step, entry in enumerate(tqdm(train_dataloader)):
-        for step, entry in enumerate(train_dataloader):
+        for step, entry in enumerate(tqdm(train_dataloader)):
+        #for step, entry in enumerate(train_dataloader):
             #entry = train_dataloader.dataset[step]
             # Update the tqdm object
             #pbar.update(1)
-            print(entry["img"].shape, entry["gt"].shape, entry["bboxes"].shape)
+            #print(entry["img"].shape, entry["gt"].shape, entry["bboxes"].shape)
             image = entry["img"]
             gt2D = entry["gt"]
             boxes = entry["bboxes"]
